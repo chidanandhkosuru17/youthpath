@@ -1,0 +1,6 @@
+{
+  "name": "YouthPath",
+  "description": "India-focused smart employment support system and career guidance platform for students and fresh graduates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

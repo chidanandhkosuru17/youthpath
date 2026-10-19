@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    color: #0f172a;
+    background-color: #ffffff;
+    min-height: 100vh;
+  }
+}
+
+/* Print styling for ATS-compliant A4 Resume Export */
+@media print {
+  body {
+    background: white !important;
+  }
+  header, footer, nav, button, .no-print {
+    display: none !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #printable-resume, #printable-resume * {
+    visibility: visible;
+  }
+  #printable-resume {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding: 24px !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
