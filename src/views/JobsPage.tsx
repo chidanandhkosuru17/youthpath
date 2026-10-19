@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { JobListing, SavedJob } from '../types';
-import { Search, MapPin, Building2, Briefcase, Bookmark, ExternalLink, Filter, CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
+import { JobListing, SavedJob, UserProfile } from '../types';
+import { Search, MapPin, Building2, Briefcase, Bookmark, ExternalLink, Filter, CheckCircle2, AlertCircle, Info, Sparkles, Bell, Mail } from 'lucide-react';
+import { JobAlertModal } from '../components/JobAlertModal';
 
 interface JobsPageProps {
   jobs: JobListing[];
   savedJobs: SavedJob[];
+  user?: UserProfile;
   onSaveJob: (jobId: string) => void;
   onRemoveSavedJob: (savedJobId: string) => void;
   isLiveProviderActive: boolean;
@@ -14,6 +16,7 @@ interface JobsPageProps {
 export const JobsPage: React.FC<JobsPageProps> = ({
   jobs,
   savedJobs,
+  user,
   onSaveJob,
   onRemoveSavedJob,
   isLiveProviderActive,
@@ -26,6 +29,7 @@ export const JobsPage: React.FC<JobsPageProps> = ({
   const [fresherOnly, setFresherOnly] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'saved'>('all');
   const [selectedJobForDetail, setSelectedJobForDetail] = useState<JobListing | null>(null);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
   const locations = [
     'All Locations',
@@ -84,30 +88,65 @@ export const JobsPage: React.FC<JobsPageProps> = ({
             </p>
           </div>
 
-          {/* Toggle between All and Saved */}
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-start md:self-auto">
+          {/* Toggle between All, Saved, and Daily Alerts */}
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+            <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+              <button
+                onClick={() => setActiveTab('all')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'all'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Openings ({filteredJobs.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('saved')}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'saved'
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                <span>Saved Jobs ({savedJobs.length})</span>
+              </button>
+            </div>
+
             <button
-              onClick={() => setActiveTab('all')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={() => setIsAlertModalOpen(true)}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Configure Daily Email Job Alerts"
             >
-              All Openings ({filteredJobs.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('saved')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'saved'
-                  ? 'bg-teal-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Bookmark className="w-3.5 h-3.5" />
-              <span>Saved Jobs ({savedJobs.length})</span>
+              <Bell className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+              <span>Daily Job Alerts</span>
             </button>
           </div>
+        </div>
+
+        {/* Daily Job Alert Announcement Card */}
+        <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/5 border border-emerald-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Mail className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-xs sm:text-sm text-slate-900">
+                Daily Email Alert System Active
+              </h3>
+              <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5">
+                We automatically scan newly verified openings in our database and send a personalized daily digest matching your target roles.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsAlertModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition self-start sm:self-auto shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>Manage Daily Alerts</span>
+          </button>
         </div>
 
         {/* Live Provider Status Banner */}
@@ -449,6 +488,29 @@ export const JobsPage: React.FC<JobsPageProps> = ({
             </div>
           </div>
         )}
+
+        {/* Daily Job Alert Modal */}
+        <JobAlertModal
+          isOpen={isAlertModalOpen}
+          onClose={() => setIsAlertModalOpen(false)}
+          user={user || {
+            id: 'usr_default_01',
+            name: 'Aarav Sharma',
+            email: 'kosuruchidanandh@gmail.com',
+            technicalSkills: [],
+            softSkills: [],
+            workExperience: [],
+            projects: [],
+            certifications: [],
+            languages: [],
+            preferredRoles: [],
+            preferredLocations: [],
+            preferredWorkMode: 'any',
+            preferredEmploymentType: 'any',
+            learningGoals: []
+          }}
+          availableJobs={jobs}
+        />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
-import { AIChatDrawer } from './components/AIChatDrawer';
+import { GeminiCareerAssistantPage } from './views/GeminiCareerAssistantPage';
 import { AuthModal } from './components/AuthModal';
 import { LandingPage } from './views/LandingPage';
 import { CareersPage } from './views/CareersPage';
@@ -83,7 +83,6 @@ export default function App() {
   const [providerNotice, setProviderNotice] = useState('Showing verified early-career Indian job database.');
 
   // UI Modals
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [prefilledInterviewRole, setPrefilledInterviewRole] = useState<string | undefined>(undefined);
   const [selectedTrackForSkills, setSelectedTrackForSkills] = useState<string | undefined>(undefined);
@@ -378,10 +377,18 @@ export default function App() {
           <JobsPage
             jobs={jobs}
             savedJobs={savedJobs}
+            user={user}
             onSaveJob={handleSaveJob}
             onRemoveSavedJob={handleRemoveSavedJob}
             isLiveProviderActive={isLiveProviderActive}
             providerNotice={providerNotice}
+          />
+        )}
+
+        {currentTab === 'gemini' && (
+          <GeminiCareerAssistantPage
+            user={user}
+            onNavigate={handleTabChange}
           />
         )}
 
@@ -439,14 +446,7 @@ export default function App() {
       {/* 3. Footer */}
       <Footer onNavigate={handleTabChange} />
 
-      {/* 4. Bottom Right Floating AI Career Assistant matching screenshot */}
-      <AIChatDrawer
-        isOpen={isChatOpen}
-        onOpen={() => setIsChatOpen(true)}
-        onClose={() => setIsChatOpen(false)}
-      />
-
-      {/* 5. Auth & Demo Sign In Modal */}
+      {/* 4. Auth & Demo Sign In Modal */}
       <AuthModal
         isOpen={isAuthOpen}
         initialMode={authMode}

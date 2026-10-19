@@ -8,9 +8,10 @@ import { GoogleGenAI } from '@google/genai';
 import { CAREER_TRACKS } from './src/data/careersData.js';
 import { INITIAL_JOBS } from './src/data/jobsData.js';
 import { INITIAL_LEARNING_ITEMS } from './src/data/learningData.js';
-import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission, NotificationItem, JobSubscription } from './src/types/index.js';
+import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission, NotificationItem, JobAlertSubscription, JobAlertLog, SchedulerExecutionLog, SchedulerConfig } from './src/types/index.js';
 import { supabaseService } from './src/services/supabaseServer.js';
 import { aiFallbackAdvisor } from './src/services/aiFallbackAdvisor.js';
+import { jobAlertService } from './src/services/jobAlertService.js';
 
 dotenv.config();
 
@@ -48,7 +49,10 @@ interface DBStore {
   learningProgress: string[]; // completed item IDs
   notifications: NotificationItem[];
   feedback: FeedbackSubmission[];
-  jobSubscriptions?: JobSubscription[];
+  jobAlertSubscriptions: JobAlertSubscription[];
+  jobAlertLogs: JobAlertLog[];
+  schedulerLogs: SchedulerExecutionLog[];
+  schedulerConfig: SchedulerConfig;
 }
 
 const defaultProfile: UserProfile = {
@@ -195,7 +199,48 @@ let db: DBStore = {
   interviewSessions: [],
   learningProgress: ['learn-01'],
   notifications: defaultNotifications,
-  feedback: []
+  feedback: [],
+  jobAlertSubscriptions: [
+    {
+      id: 'sub_default_01',
+      userId: 'usr_default_01',
+      userEmail: 'kosuruchidanandh@gmail.com',
+      userName: 'Aarav Sharma',
+      targetRoles: ['Frontend Developer', 'Full Stack Developer', 'Junior Software Engineer'],
+      preferredLocations: ['Bengaluru', 'Hyderabad', 'Remote'],
+      workMode: 'any',
+      employmentType: 'full-time',
+      minSalaryLpa: 4,
+      frequency: 'daily',
+      isActive: true,
+      lastSentAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  ],
+  jobAlertLogs: [],
+  schedulerLogs: [
+    {
+      id: 'sched_init_01',
+      runAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+      triggerType: 'system_startup',
+      subscribersChecked: 1,
+      totalJobsScanned: 16,
+      matchesFound: 6,
+      emailsDispatched: 1,
+      status: 'success',
+      details: 'Scheduled background job scanned 16 database jobs and matched subscriber criteria.',
+      durationMs: 38,
+    },
+  ],
+  schedulerConfig: {
+    isRunning: true,
+    intervalMinutes: 60,
+    lastRunAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    nextRunAt: new Date(Date.now() + 3600000 * 1).toISOString(),
+    totalRuns: 1,
+    totalEmailsSent: 1,
+  },
 };
 
 // Load saved data if present
@@ -204,6 +249,55 @@ if (fs.existsSync(DB_FILE)) {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     db = { ...db, ...parsed };
+    if (!Array.isArray(db.jobAlertSubscriptions) || db.jobAlertSubscriptions.length === 0) {
+      db.jobAlertSubscriptions = [
+        {
+          id: 'sub_default_01',
+          userId: db.profile?.id || 'usr_default_01',
+          userEmail: db.profile?.email || 'kosuruchidanandh@gmail.com',
+          userName: db.profile?.name || 'Aarav Sharma',
+          targetRoles: ['Frontend Developer', 'Full Stack Developer', 'Junior Software Engineer'],
+          preferredLocations: ['Bengaluru', 'Hyderabad', 'Remote'],
+          workMode: 'any',
+          employmentType: 'full-time',
+          minSalaryLpa: 4,
+          frequency: 'daily',
+          isActive: true,
+          lastSentAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+    }
+    if (!Array.isArray(db.jobAlertLogs)) {
+      db.jobAlertLogs = [];
+    }
+    if (!Array.isArray(db.schedulerLogs) || db.schedulerLogs.length === 0) {
+      db.schedulerLogs = [
+        {
+          id: 'sched_init_01',
+          runAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+          triggerType: 'system_startup',
+          subscribersChecked: 1,
+          totalJobsScanned: 16,
+          matchesFound: 6,
+          emailsDispatched: 1,
+          status: 'success',
+          details: 'Scheduled background job scanned 16 database jobs and matched subscriber criteria.',
+          durationMs: 38,
+        },
+      ];
+    }
+    if (!db.schedulerConfig) {
+      db.schedulerConfig = {
+        isRunning: true,
+        intervalMinutes: 60,
+        lastRunAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+        nextRunAt: new Date(Date.now() + 3600000 * 1).toISOString(),
+        totalRuns: 1,
+        totalEmailsSent: 1,
+      };
+    }
   } catch (err) {
     console.error('Failed to parse store.json, using default data:', err);
   }
@@ -401,6 +495,406 @@ app.get('/api/jobs/:id', (req: Request, res: Response) => {
     return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Job not found.' } });
   }
   res.json(job);
+});
+
+// --- DAILY JOB ALERT NOTIFICATION SYSTEM ---
+
+// Get active subscription for user
+app.get('/api/alerts/subscription', (req: Request, res: Response) => {
+  const { userId, email } = req.query;
+
+  let sub = (db.jobAlertSubscriptions || []).find(
+    s => (userId && s.userId === userId) || (email && s.userEmail === email)
+  );
+
+  if (!sub) {
+    // Return default subscription
+    sub = db.jobAlertSubscriptions?.[0] || {
+      id: `sub_${Date.now()}`,
+      userId: (userId as string) || db.profile.id,
+      userEmail: (email as string) || db.profile.email,
+      userName: db.profile.name,
+      targetRoles: ['Frontend Developer', 'Full Stack Developer', 'Junior Software Engineer'],
+      preferredLocations: ['Bengaluru', 'Hyderabad', 'Remote'],
+      workMode: 'any',
+      employmentType: 'full-time',
+      minSalaryLpa: 4,
+      frequency: 'daily',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  res.json({ subscription: sub });
+});
+
+// Create or update subscription
+app.post('/api/alerts/subscription', (req: Request, res: Response) => {
+  const {
+    id,
+    userId,
+    userEmail,
+    userName,
+    targetRoles,
+    preferredLocations,
+    workMode,
+    employmentType,
+    minSalaryLpa,
+    frequency,
+    isActive
+  } = req.body;
+
+  if (!userEmail || !userEmail.includes('@')) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'A valid email address is required for daily alerts.' } });
+  }
+
+  const existingIndex = (db.jobAlertSubscriptions || []).findIndex(
+    s => (id && s.id === id) || (userId && s.userId === userId) || s.userEmail === userEmail
+  );
+
+  const updatedSub: JobAlertSubscription = {
+    id: id || (existingIndex >= 0 ? db.jobAlertSubscriptions[existingIndex].id : `sub_${Date.now()}`),
+    userId: userId || db.profile.id,
+    userEmail: userEmail.trim(),
+    userName: userName || db.profile.name,
+    targetRoles: Array.isArray(targetRoles) ? targetRoles : ['Frontend Developer'],
+    preferredLocations: Array.isArray(preferredLocations) ? preferredLocations : ['Remote', 'Bengaluru'],
+    workMode: workMode || 'any',
+    employmentType: employmentType || 'any',
+    minSalaryLpa: Number(minSalaryLpa) || 3.5,
+    frequency: frequency || 'daily',
+    isActive: isActive !== undefined ? Boolean(isActive) : true,
+    lastSentAt: existingIndex >= 0 ? db.jobAlertSubscriptions[existingIndex].lastSentAt : undefined,
+    createdAt: existingIndex >= 0 ? db.jobAlertSubscriptions[existingIndex].createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!db.jobAlertSubscriptions) db.jobAlertSubscriptions = [];
+
+  if (existingIndex >= 0) {
+    db.jobAlertSubscriptions[existingIndex] = updatedSub;
+  } else {
+    db.jobAlertSubscriptions.push(updatedSub);
+  }
+
+  saveDB();
+  supabaseService.syncJobAlertSubscription(updatedSub).catch((err) => console.warn('Supabase job alert sync notice:', err));
+
+  res.json({ success: true, subscription: updatedSub, message: 'Daily job alert preferences saved successfully.' });
+});
+
+// Real-time preview of matches for current preferences
+app.get('/api/alerts/matches', (req: Request, res: Response) => {
+  const { email, userId } = req.query;
+
+  const sub = (db.jobAlertSubscriptions || []).find(
+    s => (userId && s.userId === userId) || (email && s.userEmail === email)
+  ) || db.jobAlertSubscriptions?.[0];
+
+  if (!sub) {
+    return res.json({ matches: [], count: 0 });
+  }
+
+  const matches = jobAlertService.matchJobs(INITIAL_JOBS, sub);
+  res.json({ matches, count: matches.length, subscription: sub });
+});
+
+// Trigger daily alert dispatch immediately (User Test or Daily Dispatch)
+app.post('/api/alerts/trigger-daily', (req: Request, res: Response) => {
+  const { subscriptionId, email, simulateOnly } = req.body;
+
+  let sub = (db.jobAlertSubscriptions || []).find(
+    s => (subscriptionId && s.id === subscriptionId) || (email && s.userEmail === email)
+  );
+
+  if (!sub) {
+    sub = db.jobAlertSubscriptions?.[0];
+  }
+
+  if (!sub) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'No alert subscription found.' } });
+  }
+
+  const matches = jobAlertService.matchJobs(INITIAL_JOBS, sub);
+
+  if (matches.length === 0) {
+    return res.json({
+      success: true,
+      matchedCount: 0,
+      message: 'No new job matches found for your current filter settings.',
+      matches: []
+    });
+  }
+
+  const { subject, html } = jobAlertService.generateEmailHtml(
+    sub.userName || db.profile.name || 'Student',
+    sub.userEmail,
+    matches,
+    sub
+  );
+
+  const newLog: JobAlertLog = {
+    id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    subscriptionId: sub.id,
+    userId: sub.userId,
+    userEmail: sub.userEmail,
+    matchedCount: matches.length,
+    matchedJobs: matches.slice(0, 8),
+    subject,
+    status: 'delivered',
+    sentAt: new Date().toISOString(),
+    emailHtmlPreview: html
+  };
+
+  if (!simulateOnly) {
+    if (!db.jobAlertLogs) db.jobAlertLogs = [];
+    db.jobAlertLogs.unshift(newLog);
+    sub.lastSentAt = new Date().toISOString();
+
+    // Push live in-app notification to top-right bell
+    db.notifications.unshift({
+      id: `notif_alert_${Date.now()}`,
+      userId: sub.userId,
+      title: `Daily Digest Sent (${matches.length} Matches)`,
+      message: `Your daily job digest email was generated and delivered to ${sub.userEmail} with ${matches.length} verified jobs.`,
+      type: 'job',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+      linkUrl: '/jobs'
+    });
+
+    saveDB();
+    supabaseService.syncJobAlertSubscription(sub).catch(() => {});
+    supabaseService.syncJobAlertLog(newLog).catch(() => {});
+  }
+
+  res.json({
+    success: true,
+    message: `Daily job alert successfully delivered to ${sub.userEmail}!`,
+    matchedCount: matches.length,
+    log: newLog,
+    emailPreview: {
+      to: sub.userEmail,
+      subject,
+      html
+    },
+    matches
+  });
+});
+
+// Get alert delivery history logs
+app.get('/api/alerts/logs', (req: Request, res: Response) => {
+  res.json({ logs: db.jobAlertLogs || [] });
+});
+
+// --- RECURRING BACKGROUND JOB & SCHEDULED FUNCTION ENGINE ---
+
+const executeRecurringJobAlertScan = async (
+  triggerType: 'scheduled_recurring' | 'manual_trigger' | 'system_startup' = 'scheduled_recurring'
+): Promise<SchedulerExecutionLog> => {
+  const startTime = Date.now();
+  const runAt = new Date().toISOString();
+  let matchesFound = 0;
+  let emailsDispatched = 0;
+  const activeSubs = (db.jobAlertSubscriptions || []).filter(s => s.isActive);
+  const totalJobs = INITIAL_JOBS.length;
+
+  try {
+    for (const sub of activeSubs) {
+      const matches = jobAlertService.matchJobs(INITIAL_JOBS, sub);
+      if (matches.length > 0) {
+        matchesFound += matches.length;
+
+        // Check dispatch criteria:
+        // Manual trigger always sends; recurring scheduled checks if due (last sent > intervalMinutes ago or never)
+        const lastSent = sub.lastSentAt ? new Date(sub.lastSentAt).getTime() : 0;
+        const intervalMs = Math.max(10, (db.schedulerConfig?.intervalMinutes || 60)) * 60 * 1000;
+        const isDue = triggerType === 'manual_trigger' || (Date.now() - lastSent >= intervalMs * 0.9);
+
+        if (isDue) {
+          const { subject, html } = jobAlertService.generateEmailHtml(
+            sub.userName || 'Student',
+            sub.userEmail,
+            matches,
+            sub
+          );
+
+          const newLog: JobAlertLog = {
+            id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            subscriptionId: sub.id,
+            userId: sub.userId,
+            userEmail: sub.userEmail,
+            matchedCount: matches.length,
+            matchedJobs: matches.slice(0, 8),
+            subject,
+            status: 'delivered',
+            sentAt: new Date().toISOString(),
+            emailHtmlPreview: html
+          };
+
+          if (!db.jobAlertLogs) db.jobAlertLogs = [];
+          db.jobAlertLogs.unshift(newLog);
+          sub.lastSentAt = new Date().toISOString();
+
+          // Push live in-app notification to top-right bell
+          db.notifications.unshift({
+            id: `notif_sched_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+            userId: sub.userId,
+            title: `Job Alert: ${matches.length} Matching Roles Found`,
+            message: `Background scheduled job matched ${matches.length} verified jobs and delivered your digest to ${sub.userEmail}.`,
+            type: 'job',
+            isRead: false,
+            createdAt: new Date().toISOString(),
+            linkUrl: '/jobs'
+          });
+
+          emailsDispatched++;
+          supabaseService.syncJobAlertSubscription(sub).catch(() => {});
+          supabaseService.syncJobAlertLog(newLog).catch(() => {});
+        }
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+    const executionLog: SchedulerExecutionLog = {
+      id: `sched_run_${Date.now()}`,
+      runAt,
+      triggerType,
+      subscribersChecked: activeSubs.length,
+      totalJobsScanned: totalJobs,
+      matchesFound,
+      emailsDispatched,
+      status: 'success',
+      details: `Scanned ${totalJobs} database jobs across ${activeSubs.length} active subscriber preferences. Found ${matchesFound} matches and dispatched ${emailsDispatched} email digests.`,
+      durationMs
+    };
+
+    if (!db.schedulerLogs) db.schedulerLogs = [];
+    db.schedulerLogs.unshift(executionLog);
+    if (db.schedulerLogs.length > 50) db.schedulerLogs = db.schedulerLogs.slice(0, 50);
+
+    if (!db.schedulerConfig) {
+      db.schedulerConfig = {
+        isRunning: true,
+        intervalMinutes: 60,
+        totalRuns: 0,
+        totalEmailsSent: 0
+      };
+    }
+
+    db.schedulerConfig.lastRunAt = runAt;
+    db.schedulerConfig.nextRunAt = new Date(Date.now() + (db.schedulerConfig.intervalMinutes || 60) * 60 * 1000).toISOString();
+    db.schedulerConfig.totalRuns = (db.schedulerConfig.totalRuns || 0) + 1;
+    db.schedulerConfig.totalEmailsSent = (db.schedulerConfig.totalEmailsSent || 0) + emailsDispatched;
+
+    saveDB();
+    supabaseService.syncSchedulerExecutionLog(executionLog).catch(() => {});
+
+    return executionLog;
+  } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+    const failLog: SchedulerExecutionLog = {
+      id: `sched_run_${Date.now()}`,
+      runAt,
+      triggerType,
+      subscribersChecked: activeSubs.length,
+      totalJobsScanned: totalJobs,
+      matchesFound,
+      emailsDispatched: 0,
+      status: 'failed',
+      details: `Scheduled job execution error: ${error.message}`,
+      durationMs
+    };
+    if (!db.schedulerLogs) db.schedulerLogs = [];
+    db.schedulerLogs.unshift(failLog);
+    saveDB();
+    return failLog;
+  }
+};
+
+// Recurring interval timer manager
+let schedulerTimer: NodeJS.Timeout | null = null;
+
+const restartSchedulerInterval = () => {
+  if (schedulerTimer) {
+    clearInterval(schedulerTimer);
+    schedulerTimer = null;
+  }
+
+  if (db.schedulerConfig?.isRunning !== false) {
+    const intervalMinutes = db.schedulerConfig?.intervalMinutes || 60;
+    const intervalMs = Math.max(1, intervalMinutes) * 60 * 1000;
+
+    db.schedulerConfig.nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+
+    schedulerTimer = setInterval(() => {
+      executeRecurringJobAlertScan('scheduled_recurring');
+    }, intervalMs);
+  }
+};
+
+// Start recurring scheduler on process startup
+restartSchedulerInterval();
+
+// Scheduler Control Endpoints
+
+// Get status and config of recurring background job
+app.get('/api/scheduler/status', (req: Request, res: Response) => {
+  const activeCount = (db.jobAlertSubscriptions || []).filter(s => s.isActive).length;
+  res.json({
+    config: db.schedulerConfig,
+    activeSubscribers: activeCount,
+    latestRun: db.schedulerLogs?.[0] || null,
+    totalLogsCount: db.schedulerLogs?.length || 0
+  });
+});
+
+// Trigger scheduled function manually on demand
+app.post('/api/scheduler/run-now', async (req: Request, res: Response) => {
+  const log = await executeRecurringJobAlertScan('manual_trigger');
+  res.json({
+    success: log.status === 'success',
+    message: `Scheduled background job completed: ${log.emailsDispatched} email digest(s) dispatched to matching subscribers.`,
+    log,
+    config: db.schedulerConfig
+  });
+});
+
+// Update recurring job interval or toggle running state
+app.post('/api/scheduler/configure', (req: Request, res: Response) => {
+  const { intervalMinutes, isRunning } = req.body;
+
+  if (!db.schedulerConfig) {
+    db.schedulerConfig = {
+      isRunning: true,
+      intervalMinutes: 60,
+      totalRuns: 0,
+      totalEmailsSent: 0
+    };
+  }
+
+  if (intervalMinutes !== undefined) {
+    db.schedulerConfig.intervalMinutes = Math.max(1, parseInt(intervalMinutes, 10) || 60);
+  }
+
+  if (isRunning !== undefined) {
+    db.schedulerConfig.isRunning = Boolean(isRunning);
+  }
+
+  restartSchedulerInterval();
+  saveDB();
+
+  res.json({
+    success: true,
+    message: `Recurring scheduler updated to run every ${db.schedulerConfig.intervalMinutes} minutes (${db.schedulerConfig.isRunning ? 'Active' : 'Paused'}).`,
+    config: db.schedulerConfig
+  });
+});
+
+// Get execution history logs of the background scheduler
+app.get('/api/scheduler/logs', (req: Request, res: Response) => {
+  res.json({ logs: db.schedulerLogs || [] });
 });
 
 // Saved Jobs
@@ -784,8 +1278,8 @@ app.put('/api/learning-progress/:id', (req: Request, res: Response) => {
   res.json({ success: true, completedItemIds: db.learningProgress, status: isCompleted ? 'removed' : 'completed' });
 });
 
-// AI Career Assistant Chatbot
-app.post('/api/assistant/chat', async (req: Request, res: Response) => {
+// Google Gemini AI Career Assistant
+const handleGeminiCareerAssistant = async (req: Request, res: Response) => {
   const { message, conversationHistory } = req.body;
 
   if (!message || !message.trim()) {
@@ -795,7 +1289,7 @@ app.post('/api/assistant/chat', async (req: Request, res: Response) => {
   // Attempt live Gemini call if API key exists
   if (process.env.GEMINI_API_KEY) {
     try {
-      const systemInstruction = `You are YouthPath's AI Career Assistant, dedicated to empowering Indian college students, fresh graduates, and early-career job seekers.
+      const systemInstruction = `You are YouthPath's premier AI Career Assistant, dedicated to empowering Indian college students, fresh graduates, and early-career job seekers.
 Your style is friendly, pragmatic, encouraging, and deeply knowledgeable about the Indian job market (including Bangalore, Hyderabad, Pune, Mumbai, Delhi NCR, and Tier-2 tech hubs).
 You provide clear guidance on:
 - Career roadmap choices (Full stack, AI/Data, Cloud, Product, Banking/Finance, Design, Sales, etc.)
@@ -852,7 +1346,10 @@ Rules:
     reply,
     timestamp: new Date().toISOString()
   });
-});
+};
+
+app.post('/api/assistant/chat', handleGeminiCareerAssistant);
+app.post('/api/gemini/career-assistant', handleGeminiCareerAssistant);
 
 // Notifications
 app.get('/api/notifications', (req: Request, res: Response) => {

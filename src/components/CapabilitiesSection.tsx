@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Briefcase, Mic, FileText, BookOpen, Bot, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Compass, Briefcase, Mic, FileText, BookOpen, Bot, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 
 interface CapabilitiesSectionProps {
   onNavigate: (tab: string) => void;
@@ -48,12 +48,12 @@ export const CapabilitiesSection: React.FC<CapabilitiesSectionProps> = ({ onNavi
       actionLabel: 'View Skill Hub'
     },
     {
-      id: 'chat',
-      icon: Bot,
-      title: '24/7 AI Career Assistant',
-      description: 'Ask questions about Indian career choices, resume wording, interview strategies, salary negotiations, or overcoming campus placement anxiety.',
-      highlights: ['Context-aware conversational guidance', 'Pragmatic advice for Indian students', 'Available anywhere via quick drawer'],
-      actionLabel: 'Ask Assistant'
+      id: 'gemini',
+      icon: Sparkles,
+      title: 'AI Career Assistant',
+      description: 'Strategic career navigation and personalized roadmap architecture, ATS resume audits, company interview tactics, and fresher salary intelligence.',
+      highlights: ['Context-aware career roadmaps', 'Indian campus placement & ATS optimization', 'City-wise CTC and salary benchmarks'],
+      actionLabel: 'Consult AI Assistant'
     }
   ];
 

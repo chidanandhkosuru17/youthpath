@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission } from '../types';
+import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission, JobAlertSubscription, JobAlertLog, SchedulerExecutionLog } from '../types';
 
 const rawUrl = process.env.SUPABASE_URL || 'https://eylvjfcnljhoanaxiyqk.supabase.co';
 // Strip trailing /rest/v1 or /rest/v1/ so supabase-js forms correct endpoint URLs
@@ -207,4 +207,103 @@ export const supabaseService = {
       return false;
     }
   },
+
+  // Job Alert Subscriptions Sync
+  async syncJobAlertSubscription(sub: JobAlertSubscription): Promise<boolean> {
+    try {
+      const payload = {
+        id: sub.id,
+        user_id: sub.userId,
+        user_email: sub.userEmail,
+        user_name: sub.userName || null,
+        target_roles: sub.targetRoles,
+        preferred_locations: sub.preferredLocations,
+        work_mode: sub.workMode,
+        employment_type: sub.employmentType,
+        min_salary_lpa: sub.minSalaryLpa || null,
+        frequency: sub.frequency,
+        is_active: sub.isActive,
+        last_sent_at: sub.lastSentAt || null,
+        created_at: sub.createdAt,
+        updated_at: sub.updatedAt,
+      };
+
+      const { error } = await supabase.from('job_alert_subscriptions').upsert(payload);
+      if (error) {
+        console.warn('Supabase job_alert_subscriptions sync notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e: any) {
+      return false;
+    }
+  },
+
+  async deleteJobAlertSubscription(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('job_alert_subscriptions').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase deleteJobAlertSubscription notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // Job Alert Delivery Log Sync
+  async syncJobAlertLog(log: JobAlertLog): Promise<boolean> {
+    try {
+      const payload = {
+        id: log.id,
+        subscription_id: log.subscriptionId,
+        user_id: log.userId,
+        user_email: log.userEmail,
+        matched_count: log.matchedCount,
+        matched_jobs: log.matchedJobs,
+        subject: log.subject,
+        status: log.status,
+        sent_at: log.sentAt,
+      };
+
+      const { error } = await supabase.from('job_alert_logs').insert(payload);
+      if (error) {
+        console.warn('Supabase job_alert_logs sync notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  // Recurring Background Job Execution Log Sync
+  async syncSchedulerExecutionLog(log: SchedulerExecutionLog): Promise<boolean> {
+    try {
+      const payload = {
+        id: log.id,
+        run_at: log.runAt,
+        trigger_type: log.triggerType,
+        subscribers_checked: log.subscribersChecked,
+        total_jobs_scanned: log.totalJobsScanned,
+        matches_found: log.matchesFound,
+        emails_dispatched: log.emailsDispatched,
+        status: log.status,
+        details: log.details,
+        duration_ms: log.durationMs,
+      };
+
+      const { error } = await supabase.from('scheduler_execution_logs').insert(payload);
+      if (error) {
+        console.warn('Supabase scheduler_execution_logs sync notice:', error.message);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
 };
+
+

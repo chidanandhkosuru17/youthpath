@@ -1,4 +1,4 @@
-import { CareerTrack, JobListing, SavedJob, ResumeData, InterviewSession, LearningItem, UserProfile, NotificationItem, FeedbackSubmission } from '../types';
+import { CareerTrack, JobListing, SavedJob, ResumeData, InterviewSession, LearningItem, UserProfile, NotificationItem, FeedbackSubmission, JobAlertSubscription, JobAlertLog, SchedulerExecutionLog, SchedulerConfig } from '../types';
 
 export const api = {
   // Health & Supabase
@@ -276,5 +276,113 @@ export const api = {
       throw new Error(err?.error?.message || 'Failed to submit feedback');
     }
     return res.json();
-  }
+  },
+
+  // Daily Job Alerts & Email Digest
+  async getAlertSubscription(email?: string, userId?: string): Promise<{ subscription: JobAlertSubscription }> {
+    const params = new URLSearchParams();
+    if (email) params.append('email', email);
+    if (userId) params.append('userId', userId);
+    const res = await fetch(`/api/alerts/subscription?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch alert subscription');
+    return res.json();
+  },
+
+  async saveAlertSubscription(data: Partial<JobAlertSubscription>): Promise<{ success: boolean; subscription: JobAlertSubscription; message: string }> {
+    const res = await fetch('/api/alerts/subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'Failed to save alert preferences');
+    }
+    return res.json();
+  },
+
+  async getAlertMatches(email?: string, userId?: string): Promise<{ matches: any[]; count: number; subscription: JobAlertSubscription }> {
+    const params = new URLSearchParams();
+    if (email) params.append('email', email);
+    if (userId) params.append('userId', userId);
+    const res = await fetch(`/api/alerts/matches?${params.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch matched jobs');
+    return res.json();
+  },
+
+  async triggerDailyAlert(options?: { subscriptionId?: string; email?: string; simulateOnly?: boolean }): Promise<{
+    success: boolean;
+    message: string;
+    matchedCount: number;
+    log: JobAlertLog;
+    emailPreview: { to: string; subject: string; html: string };
+    matches: any[];
+  }> {
+    const res = await fetch('/api/alerts/trigger-daily', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options || {}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'Failed to dispatch daily alert');
+    }
+    return res.json();
+  },
+
+  async getAlertLogs(): Promise<{ logs: JobAlertLog[] }> {
+    const res = await fetch('/api/alerts/logs');
+    if (!res.ok) throw new Error('Failed to fetch alert logs');
+    return res.json();
+  },
+
+  // Recurring Background Job & Scheduler Controls
+  async getSchedulerStatus(): Promise<{
+    config: SchedulerConfig;
+    activeSubscribers: number;
+    latestRun: SchedulerExecutionLog | null;
+    totalLogsCount: number;
+  }> {
+    const res = await fetch('/api/scheduler/status');
+    if (!res.ok) throw new Error('Failed to fetch scheduler status');
+    return res.json();
+  },
+
+  async runSchedulerNow(): Promise<{
+    success: boolean;
+    message: string;
+    log: SchedulerExecutionLog;
+    config: SchedulerConfig;
+  }> {
+    const res = await fetch('/api/scheduler/run-now', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'Failed to trigger background scheduler');
+    }
+    return res.json();
+  },
+
+  async configureScheduler(options: { intervalMinutes?: number; isRunning?: boolean }): Promise<{
+    success: boolean;
+    message: string;
+    config: SchedulerConfig;
+  }> {
+    const res = await fetch('/api/scheduler/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+    if (!res.ok) throw new Error('Failed to configure scheduler');
+    return res.json();
+  },
+
+  async getSchedulerLogs(): Promise<{ logs: SchedulerExecutionLog[] }> {
+    const res = await fetch('/api/scheduler/logs');
+    if (!res.ok) throw new Error('Failed to fetch scheduler logs');
+    return res.json();
+  },
 };
+

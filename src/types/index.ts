@@ -254,14 +254,67 @@ export interface JobSearchPreferences {
   fresherOnly?: boolean;
 }
 
-export interface JobSubscription {
+export interface JobAlertSubscription {
   id: string;
   userId: string;
   userEmail: string;
-  title?: string;
-  preferences: JobSearchPreferences;
-  frequency: 'instant' | 'daily' | 'weekly';
+  userName?: string;
+  targetRoles: string[];
+  preferredLocations: string[];
+  workMode: 'remote' | 'hybrid' | 'onsite' | 'any';
+  employmentType: 'full-time' | 'internship' | 'any';
+  minSalaryLpa?: number;
+  frequency: 'daily' | 'instant' | 'weekly';
   isActive: boolean;
+  lastSentAt?: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
 }
+
+export interface JobAlertLog {
+  id: string;
+  subscriptionId: string;
+  userId: string;
+  userEmail: string;
+  matchedCount: number;
+  matchedJobs: {
+    id: string;
+    title: string;
+    company: string;
+    location: string;
+    salary: string;
+    applyUrl: string;
+    matchScore: number;
+    matchReason?: string;
+  }[];
+  subject: string;
+  status: 'sent' | 'delivered' | 'failed';
+  sentAt: string;
+  emailHtmlPreview?: string;
+}
+
+// Backward compatibility alias
+export type JobSubscription = JobAlertSubscription;
+
+export interface SchedulerExecutionLog {
+  id: string;
+  runAt: string;
+  triggerType: 'scheduled_recurring' | 'manual_trigger' | 'system_startup';
+  subscribersChecked: number;
+  totalJobsScanned: number;
+  matchesFound: number;
+  emailsDispatched: number;
+  status: 'success' | 'partial' | 'failed';
+  details: string;
+  durationMs: number;
+}
+
+export interface SchedulerConfig {
+  isRunning: boolean;
+  intervalMinutes: number;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  totalRuns: number;
+  totalEmailsSent: number;
+}
+

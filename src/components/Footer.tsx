@@ -53,6 +53,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 </button>
               </li>
               <li>
+                <button onClick={() => onNavigate('gemini')} className="hover:text-teal-400 transition cursor-pointer text-teal-300 font-medium flex items-center gap-1">
+                  <span>AI Career Assistant</span>
+                  <span className="text-[9px] bg-teal-500/20 text-teal-300 px-1.5 py-0.5 rounded border border-teal-500/30">AI</span>
+                </button>
+              </li>
+              <li>
                 <button onClick={() => onNavigate('skills')} className="hover:text-teal-400 transition cursor-pointer">
                   Skill Hub & Certifications
                 </button>

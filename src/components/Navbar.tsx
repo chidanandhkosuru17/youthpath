@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Bell, Menu, X, Check, User, ArrowRight, LogOut, LayoutDashboard, Bookmark, FileText, LogIn } from 'lucide-react';
+import { TrendingUp, Bell, Menu, X, Check, User, ArrowRight, LogOut, LayoutDashboard, Bookmark, FileText, LogIn, Sparkles } from 'lucide-react';
 import { NotificationItem, UserProfile } from '../types';
 
 interface NavbarProps {
@@ -32,6 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navLinks = [
     { id: 'careers', label: 'Explore Careers' },
     { id: 'jobs', label: 'Find Jobs' },
+    { id: 'gemini', label: 'AI Assistant', isGemini: true },
     { id: 'skills', label: 'Skill Hub' },
     { id: 'interviews', label: 'Mock Interviews' },
     { id: 'resume', label: 'Resume Builder' },
@@ -59,18 +60,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-7">
+        <nav className="hidden lg:flex items-center gap-5 xl:gap-6">
           {navLinks.map((link) => (
             <button
               key={link.id}
               onClick={() => setCurrentTab(link.id)}
-              className={`text-sm font-medium transition-colors cursor-pointer ${
+              className={`text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
                 currentTab === link.id
                   ? 'text-teal-600 font-semibold'
                   : 'text-slate-600 hover:text-teal-600'
-              }`}
+              } ${link.isGemini ? 'bg-gradient-to-r from-teal-50 to-blue-50 text-teal-800 px-3 py-1 rounded-full border border-teal-200 shadow-2xs font-semibold text-xs' : ''}`}
             >
-              {link.label}
+              {link.isGemini && <Sparkles className="w-3.5 h-3.5 text-teal-600 fill-teal-600" />}
+              <span>{link.label}</span>
             </button>
           ))}
         </nav>
@@ -288,13 +290,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setCurrentTab(link.id);
                 setMobileMenuOpen(false);
               }}
-              className={`block w-full text-left px-3 py-2.5 rounded-lg text-base font-medium ${
+              className={`flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg text-base font-medium ${
                 currentTab === link.id
                   ? 'bg-teal-50 text-teal-700 font-semibold'
                   : 'text-slate-700 hover:bg-slate-50'
-              }`}
+              } ${link.isGemini ? 'text-teal-700 font-semibold' : ''}`}
             >
-              {link.label}
+              <span className="flex items-center gap-2">
+                {link.isGemini && <Sparkles className="w-4 h-4 text-teal-600 fill-teal-600" />}
+                <span>{link.label}</span>
+              </span>
+              {link.isGemini && (
+                <span className="text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full font-bold">
+                  AI
+                </span>
+              )}
             </button>
           ))}
           <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">

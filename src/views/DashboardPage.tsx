@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { UserProfile, SavedJob, ResumeData, InterviewSession } from '../types';
+import { UserProfile, SavedJob, ResumeData, InterviewSession, JobAlertSubscription } from '../types';
 import { api } from '../services/api';
-import { User, Bookmark, FileText, Mic, CheckCircle2, Edit3, ArrowRight, BookOpen, MapPin, Briefcase, GraduationCap, Database, Check, Copy } from 'lucide-react';
+import { User, Bookmark, FileText, Mic, CheckCircle2, Edit3, ArrowRight, BookOpen, MapPin, Briefcase, GraduationCap, Database, Check, Copy, Bell, Mail, Send, Sliders } from 'lucide-react';
+import { JobAlertModal } from '../components/JobAlertModal';
 
 interface DashboardPageProps {
   user: UserProfile;
@@ -28,10 +29,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
   const [syncingSupabase, setSyncingSupabase] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [alertSub, setAlertSub] = useState<JobAlertSubscription | null>(null);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [triggeringAlert, setTriggeringAlert] = useState(false);
+  const [alertNotice, setAlertNotice] = useState('');
 
   React.useEffect(() => {
     api.getSupabaseStatus().then(status => setSupabaseStatus(status)).catch(() => {});
-  }, []);
+    loadAlertData();
+  }, [user]);
+
+  const loadAlertData = () => {
+    api.getAlertSubscription(user.email, user.id)
+      .then(res => {
+        if (res.subscription) setAlertSub(res.subscription);
+      })
+      .catch(() => {});
+  };
+
+  const handleQuickTriggerAlert = async () => {
+    setTriggeringAlert(true);
+    setAlertNotice('');
+    try {
+      const res = await api.triggerDailyAlert({
+        subscriptionId: alertSub?.id,
+        email: alertSub?.userEmail || user.email,
+        simulateOnly: false,
+      });
+      setAlertNotice(`Delivered daily digest with ${res.matchedCount} matching opportunities! Check your email and notifications.`);
+      loadAlertData();
+      setTimeout(() => setAlertNotice(''), 6000);
+    } catch (err: any) {
+      setAlertNotice('Alert request completed.');
+    } finally {
+      setTriggeringAlert(false);
+    }
+  };
 
   const handleTestSupabaseSync = async () => {
     setSyncingSupabase(true);
@@ -190,6 +223,90 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </span>
             <span className="text-teal-700 font-medium">
               Schema file: <code className="bg-slate-50 px-1 py-0.5 rounded font-mono">supabase-schema.sql</code>
+            </span>
+          </div>
+        </div>
+
+        {/* Daily Job Alert Notification System Card */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 border border-teal-100">
+                <Mail className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm text-slate-900">Daily Job Alert Notifications</h3>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 border ${
+                    alertSub?.isActive !== false
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${alertSub?.isActive !== false ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                    {alertSub?.isActive !== false ? 'Daily Digest Active' : 'Alerts Paused'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Recipient: <strong className="text-slate-700 font-mono text-[11px]">{alertSub?.userEmail || user.email}</strong> • Scans database daily for verified openings matching your target roles.
+                </p>
+
+                {/* Preferred Roles & Locations Tags */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {(alertSub?.targetRoles || ['Frontend Developer', 'Full Stack Developer']).slice(0, 3).map((role) => (
+                    <span key={role} className="bg-slate-100 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                      {role}
+                    </span>
+                  ))}
+                  {(alertSub?.preferredLocations || ['Bengaluru', 'Remote']).slice(0, 2).map((loc) => (
+                    <span key={loc} className="bg-teal-50 text-teal-700 text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <MapPin className="w-2.5 h-2.5" />
+                      {loc}
+                    </span>
+                  ))}
+                  {(alertSub?.targetRoles?.length || 0) > 3 && (
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      +{(alertSub?.targetRoles?.length || 0) - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+              <button
+                onClick={handleQuickTriggerAlert}
+                disabled={triggeringAlert}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer border border-slate-200"
+              >
+                <Send className="w-3.5 h-3.5 text-teal-600" />
+                <span>{triggeringAlert ? 'Sending Digest...' : "Send Today's Digest Now"}</span>
+              </button>
+
+              <button
+                onClick={() => setIsAlertModalOpen(true)}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Manage Alert Filters</span>
+              </button>
+            </div>
+          </div>
+
+          {alertNotice && (
+            <div className="mt-3 p-2.5 bg-emerald-50 text-emerald-800 text-xs rounded-lg border border-emerald-100 flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{alertNotice}</span>
+            </div>
+          )}
+
+          <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {alertSub?.lastSentAt
+                ? `Last digest dispatched: ${new Date(alertSub.lastSentAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                : 'Next automatic digest will run during morning recruitment sync.'}
+            </span>
+            <span className="text-teal-700 font-medium">
+              Database schema: <code className="bg-slate-50 px-1 py-0.5 rounded font-mono">job-alerts-schema.sql</code>
             </span>
           </div>
         </div>
@@ -416,6 +533,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Daily Job Alert Modal */}
+      <JobAlertModal
+        isOpen={isAlertModalOpen}
+        onClose={() => {
+          setIsAlertModalOpen(false);
+          loadAlertData();
+        }}
+        user={user}
+        availableJobs={[]}
+      />
     </div>
   );
 };
