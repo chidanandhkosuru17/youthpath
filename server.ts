@@ -8,8 +8,9 @@ import { GoogleGenAI } from '@google/genai';
 import { CAREER_TRACKS } from './src/data/careersData.js';
 import { INITIAL_JOBS } from './src/data/jobsData.js';
 import { INITIAL_LEARNING_ITEMS } from './src/data/learningData.js';
-import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission, NotificationItem } from './src/types/index.js';
+import { UserProfile, SavedJob, ResumeData, InterviewSession, FeedbackSubmission, NotificationItem, JobSubscription } from './src/types/index.js';
 import { supabaseService } from './src/services/supabaseServer.js';
+import { aiFallbackAdvisor } from './src/services/aiFallbackAdvisor.js';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ interface DBStore {
   learningProgress: string[]; // completed item IDs
   notifications: NotificationItem[];
   feedback: FeedbackSubmission[];
+  jobSubscriptions?: JobSubscription[];
 }
 
 const defaultProfile: UserProfile = {
@@ -294,19 +296,11 @@ app.get('/api/careers/:id', (req: Request, res: Response) => {
 
 // AI Career Recommendations
 app.post('/api/career-recommendations', async (req: Request, res: Response) => {
+  const { education, interests, skills, preferredWorkType, goals } = req.body;
+
   try {
-    const { education, interests, skills, preferredWorkType, goals } = req.body;
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({
-        error: {
-          code: 'AI_UNAVAILABLE',
-          message: 'Gemini AI API key is not configured on the server. Please configure GEMINI_API_KEY in secrets.'
-        }
-      });
-    }
-
-    const prompt = `You are YouthPath's career counselor specialized in the Indian employment landscape for students and fresh graduates.
+    if (process.env.GEMINI_API_KEY) {
+      const prompt = `You are YouthPath's career counselor specialized in the Indian employment landscape for students and fresh graduates.
 Based on the user's questionnaire, recommend 3 highly suitable career paths tailored to the Indian job market.
 
 User Profile:
@@ -329,32 +323,27 @@ Provide a structured JSON output with an array named "recommendations" where eac
 
 Return valid JSON only.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      }
-    });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        }
+      });
 
-    const raw = response.text || '{}';
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { recommendations: [] };
+      const raw = response.text || '{}';
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed?.recommendations) && parsed.recommendations.length > 0) {
+        return res.json(parsed);
+      }
     }
-
-    res.json(data);
   } catch (error: any) {
-    console.error('Gemini career recommendation error:', error);
-    res.status(500).json({
-      error: {
-        code: 'AI_GENERATION_FAILED',
-        message: 'Failed to generate career recommendations. Please try again in a moment.'
-      }
-    });
+    console.warn('Gemini career recommendation notice (using built-in advisor):', error.message);
   }
+
+  // Fallback to domain advisor
+  const fallbackRecs = aiFallbackAdvisor.getCareerRecommendations(education, interests, skills);
+  res.json({ recommendations: fallbackRecs });
 });
 
 // Jobs
@@ -523,18 +512,13 @@ app.delete('/api/resumes/:id', (req: Request, res: Response) => {
 
 // AI Resume Polish & Bullet Enhancer
 app.post('/api/resumes/ai-improve', async (req: Request, res: Response) => {
+  const { type, content, targetRole } = req.body;
+
   try {
-    const { type, content, targetRole } = req.body;
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({
-        error: { code: 'AI_UNAVAILABLE', message: 'Gemini AI API key is not configured on the server.' }
-      });
-    }
-
-    let prompt = '';
-    if (type === 'summary') {
-      prompt = `You are a professional ATS resume expert for the Indian hiring market.
+    if (process.env.GEMINI_API_KEY) {
+      let prompt = '';
+      if (type === 'summary') {
+        prompt = `You are a professional ATS resume expert for the Indian hiring market.
 Rewrite and elevate the following student/fresher resume summary to be crisp, impactful, action-oriented, and ATS-friendly for a "${targetRole || 'Software / Technology'}" position.
 Original summary: "${content}"
 Provide a JSON object with:
@@ -542,8 +526,8 @@ Provide a JSON object with:
 - "keyStrengthsHighlighted": (Array of 3 highlighted qualities)
 - "atsKeywordsAdded": (Array of 3-4 keywords added)
 Return valid JSON only.`;
-    } else {
-      prompt = `You are an ATS resume bullet point specialist for technical and business freshers in India.
+      } else {
+        prompt = `You are an ATS resume bullet point specialist for technical and business freshers in India.
 Rewrite the following project/experience bullet points using the Google XYZ formula ("Accomplished [X], as measured by [Y], by doing [Z]") with active power verbs. Do NOT fabricate fake numbers or degrees.
 Input bullet points: "${content}"
 Target role: "${targetRole || 'Early Career / Fresher'}"
@@ -551,20 +535,26 @@ Provide a JSON object with:
 - "improvedBullets": (Array of improved bullet strings)
 - "feedback": (Brief explanation of improvements made)
 Return valid JSON only.`;
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: { responseMimeType: 'application/json' }
+      });
+
+      const parsed = JSON.parse(response.text || '{}');
+      if (parsed.improved || parsed.improvedBullets) {
+        return res.json(parsed);
+      }
     }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' }
-    });
-
-    const parsed = JSON.parse(response.text || '{}');
-    res.json(parsed);
-  } catch (error) {
-    console.error('AI resume polish error:', error);
-    res.status(500).json({ error: { code: 'AI_FAILED', message: 'Could not enhance resume content.' } });
+  } catch (error: any) {
+    console.warn('AI resume polish notice (using built-in advisor):', error.message);
   }
+
+  // Fallback to domain resume advisor
+  const fallbackResult = aiFallbackAdvisor.improveResume(type, content, targetRole);
+  res.json(fallbackResult);
 });
 
 // Mock Interviews: Start session
@@ -796,23 +786,16 @@ app.put('/api/learning-progress/:id', (req: Request, res: Response) => {
 
 // AI Career Assistant Chatbot
 app.post('/api/assistant/chat', async (req: Request, res: Response) => {
-  try {
-    const { message, conversationHistory } = req.body;
+  const { message, conversationHistory } = req.body;
 
-    if (!message || !message.trim()) {
-      return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Message cannot be empty.' } });
-    }
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Message cannot be empty.' } });
+  }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(503).json({
-        error: {
-          code: 'AI_UNAVAILABLE',
-          message: 'Gemini AI API key is not configured on the server. Please add your GEMINI_API_KEY to server environment.'
-        }
-      });
-    }
-
-    const systemInstruction = `You are YouthPath's AI Career Assistant, dedicated to empowering Indian college students, fresh graduates, and early-career job seekers.
+  // Attempt live Gemini call if API key exists
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const systemInstruction = `You are YouthPath's AI Career Assistant, dedicated to empowering Indian college students, fresh graduates, and early-career job seekers.
 Your style is friendly, pragmatic, encouraging, and deeply knowledgeable about the Indian job market (including Bangalore, Hyderabad, Pune, Mumbai, Delhi NCR, and Tier-2 tech hubs).
 You provide clear guidance on:
 - Career roadmap choices (Full stack, AI/Data, Cloud, Product, Banking/Finance, Design, Sales, etc.)
@@ -824,44 +807,51 @@ You provide clear guidance on:
 Rules:
 - Never fabricate fake job vacancies or guaranteed placement promises.
 - Remind users to verify eligibility on official portals.
-- Keep answers structured with clean bullet points and clear takeaways.
+- Keep answers structured with clean markdown headers and bullet points.
 - Do not mention or reference UN Sustainable Development Goals (SDGs).`;
 
-    let contents: any[] = [];
+      let contents: any[] = [];
 
-    if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
-      for (const turn of conversationHistory.slice(-8)) {
-        contents.push({
-          role: turn.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: turn.text }]
+      if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+        for (const turn of conversationHistory.slice(-6)) {
+          contents.push({
+            role: turn.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: turn.text }]
+          });
+        }
+      }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      if (response.text) {
+        return res.json({
+          reply: response.text,
+          timestamp: new Date().toISOString()
         });
       }
+    } catch (error: any) {
+      console.warn('Gemini Assistant call notice (falling back to built-in advisor):', error.message);
     }
-
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }]
-    });
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      }
-    });
-
-    res.json({
-      reply: response.text || 'I apologize, I could not generate a response right now. Please try again.',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error: any) {
-    console.error('AI Assistant error:', error);
-    res.status(500).json({
-      error: { code: 'AI_FAILED', message: 'The Career Assistant encountered a temporary issue. Please try again.' }
-    });
   }
+
+  // Fallback to built-in domain counselor
+  const reply = aiFallbackAdvisor.getAssistantResponse(message);
+  res.json({
+    reply,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Notifications

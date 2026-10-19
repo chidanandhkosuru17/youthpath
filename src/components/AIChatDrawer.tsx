@@ -91,6 +91,68 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({ isOpen, onClose, onO
     'What is the salary range for Junior Data Analysts in India?'
   ];
 
+  const formatBold = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={i} className="font-semibold text-slate-900">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
+
+  const renderFormattedMessage = (content: string) => {
+    const lines = content.split('\n');
+    return (
+      <div className="space-y-1.5 text-xs sm:text-sm">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('### ')) {
+            return (
+              <h4 key={idx} className="font-bold text-slate-900 text-sm mt-2 mb-1 border-b border-slate-100 pb-0.5">
+                {trimmed.replace('### ', '')}
+              </h4>
+            );
+          }
+          if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+            return (
+              <div key={idx} className="flex items-start gap-1.5 pl-1 text-slate-700">
+                <span className="text-teal-600 font-bold">•</span>
+                <span>{formatBold(trimmed.substring(2))}</span>
+              </div>
+            );
+          }
+          if (trimmed.startsWith('> ')) {
+            return (
+              <blockquote key={idx} className="border-l-2 border-teal-500 pl-2.5 py-1 my-1 italic bg-teal-50/50 rounded-r text-slate-800 text-xs">
+                {formatBold(trimmed.substring(2))}
+              </blockquote>
+            );
+          }
+          if (trimmed.startsWith('|')) {
+            return (
+              <div key={idx} className="font-mono text-[11px] overflow-x-auto py-0.5 text-slate-600">
+                {line}
+              </div>
+            );
+          }
+          if (!trimmed) {
+            return <div key={idx} className="h-1" />;
+          }
+          return (
+            <p key={idx} className="leading-relaxed">
+              {formatBold(line)}
+            </p>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Floating Action Button matching screenshot */}
@@ -148,15 +210,15 @@ export const AIChatDrawer: React.FC<AIChatDrawerProps> = ({ isOpen, onClose, onO
                     </div>
                   )}
                   <div
-                    className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-2xs whitespace-pre-line ${
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-2xs ${
                       m.sender === 'user'
-                        ? 'bg-teal-600 text-white rounded-tr-xs'
+                        ? 'bg-teal-600 text-white rounded-tr-xs text-xs sm:text-sm whitespace-pre-line'
                         : 'bg-white text-slate-800 border border-slate-200/70 rounded-tl-xs'
                     }`}
                   >
-                    {m.text}
+                    {m.sender === 'assistant' ? renderFormattedMessage(m.text) : m.text}
                     <div
-                      className={`text-[10px] mt-1 text-right ${
+                      className={`text-[10px] mt-1.5 text-right ${
                         m.sender === 'user' ? 'text-teal-100' : 'text-slate-400'
                       }`}
                     >

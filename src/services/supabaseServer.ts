@@ -178,7 +178,7 @@ export const supabaseService = {
     }
   },
 
-  // Feedback Sync
+  // Inquiry & Feedback Sync
   async syncFeedback(fb: FeedbackSubmission): Promise<boolean> {
     try {
       const payload = {
@@ -192,10 +192,15 @@ export const supabaseService = {
         submitted_at: fb.submittedAt,
       };
 
-      const { error } = await supabase.from('feedback').insert(payload);
-      if (error) {
-        console.warn('Supabase feedback sync notice:', error.message);
-        return false;
+      // Try inserting into 'inquiries' first
+      const { error: inqError } = await supabase.from('inquiries').insert(payload);
+      if (inqError) {
+        // Also try inserting into 'feedback' table
+        const { error: fbError } = await supabase.from('feedback').insert(payload);
+        if (fbError) {
+          console.warn('Supabase inquiry sync notice:', inqError.message);
+          return false;
+        }
       }
       return true;
     } catch (e: any) {

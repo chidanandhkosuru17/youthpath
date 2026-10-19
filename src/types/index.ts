@@ -245,3 +245,23 @@ export interface FeedbackSubmission {
   message: string;
   submittedAt: string;
 }
+
+export interface JobSearchPreferences {
+  query?: string;
+  location?: string;
+  workMode?: string;
+  employmentType?: string;
+  fresherOnly?: boolean;
+}
+
+export interface JobSubscription {
+  id: string;
+  userId: string;
+  userEmail: string;
+  title?: string;
+  preferences: JobSearchPreferences;
+  frequency: 'instant' | 'daily' | 'weekly';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
