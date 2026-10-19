@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, User, Mail, Lock, CheckCircle2, ArrowRight, Loader2, KeyRound } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Mail, Lock, CheckCircle2, ArrowRight, Loader2, KeyRound, AlertCircle, LogIn, UserPlus } from 'lucide-react';
 import { UserProfile } from '../types';
 import { authService } from '../services/supabaseClient';
 
@@ -19,12 +19,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'login',
 }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
-  const [fullName, setFullName] = useState(currentProfile.name || '');
+  const [fullName, setFullName] = useState(currentProfile?.name || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
+
+  // Sync mode when modal opens or initialMode changes
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setError('');
+      setSuccessNotice('');
+      if (currentProfile?.name) {
+        setFullName(currentProfile.name);
+      }
+    }
+  }, [isOpen, initialMode, currentProfile]);
 
   if (!isOpen) return null;
 
@@ -42,7 +54,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLoading(true);
       try {
         await authService.resetPassword(email.trim());
-        setSuccessNotice('Password reset link sent! Check your email inbox.');
+        setSuccessNotice('Password reset link sent! Please check your email inbox.');
       } catch (err: any) {
         setError(err.message || 'Failed to send password reset email.');
       } finally {
@@ -63,7 +75,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const data = await authService.signUp(email.trim(), password, fullName.trim() || 'YouthPath Student');
 
         if (data.session) {
-          // Direct login without mandatory confirmation
+          // Direct login (instant confirmation)
           const newProfile: UserProfile = {
             ...currentProfile,
             id: data.user?.id || currentProfile.id,
@@ -73,13 +85,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onSuccess(newProfile);
           onClose();
         } else {
-          // Confirmation email sent
           setSuccessNotice(
-            'Account created successfully in Supabase! If email confirmation is enabled in your project, check your inbox to verify your account.'
+            'Account registered successfully! If email verification is required, please check your inbox to confirm your account, then sign in.'
           );
         }
       } catch (err: any) {
-        setError(err.message || 'Failed to sign up in Supabase.');
+        const msg = err.message || '';
+        if (msg.toLowerCase().includes('already registered')) {
+          setError('An account with this email already exists. Please click "Sign In" above to log in.');
+        } else {
+          setError(msg || 'Failed to complete registration. Please try again.');
+        }
       } finally {
         setLoading(false);
       }
@@ -98,7 +114,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onSuccess(authenticatedProfile);
         onClose();
       } catch (err: any) {
-        setError(err.message || 'Invalid email or password. Please try again.');
+        const msg = err.message || '';
+        if (msg.toLowerCase().includes('invalid login credentials')) {
+          setError(
+            'Invalid email or password. If you haven\'t created an account yet, click the "Create Account" tab above to sign up.'
+          );
+        } else if (msg.toLowerCase().includes('email not confirmed')) {
+          setError('Your email has not been confirmed yet. Please verify your email inbox or check your Supabase project settings.');
+        } else {
+          setError(msg || 'Could not sign in. Please verify your credentials.');
+        }
       } finally {
         setLoading(false);
       }
@@ -111,41 +136,82 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-5 bg-slate-900 text-white flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">
+            <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-400"></span>
               {mode === 'signup'
-                ? 'Create Your YouthPath Account'
+                ? 'Create Student Account'
                 : mode === 'forgot'
-                ? 'Reset Your Password'
+                ? 'Reset Password'
                 : 'Sign In to YouthPath'}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Powered by Supabase Authentication
+            <p className="text-xs text-teal-300 mt-0.5">
+              Secure Career Profile & Applications Access
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+            title="Close"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Switcher: Sign In vs Create Account */}
+        <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('login');
+              setError('');
+              setSuccessNotice('');
+            }}
+            className={`py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition cursor-pointer ${
+              mode === 'login'
+                ? 'border-teal-600 text-teal-700 bg-white shadow-2xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Sign In</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode('signup');
+              setError('');
+              setSuccessNotice('');
+            }}
+            className={`py-3 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition cursor-pointer ${
+              mode === 'signup'
+                ? 'border-teal-600 text-teal-700 bg-white shadow-2xs'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Create Account</span>
           </button>
         </div>
 
         {/* Form Body */}
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-100">
-              {error}
+            <div className="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2 leading-relaxed">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
           {successNotice && (
-            <div className="mb-4 p-3 bg-emerald-50 text-emerald-800 text-xs rounded-lg border border-emerald-100 leading-relaxed">
-              {successNotice}
+            <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200 flex items-start gap-2 leading-relaxed">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              <span>{successNotice}</span>
             </div>
           )}
 
@@ -228,15 +294,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Processing...</span>
+                  <span>
+                    {mode === 'signup'
+                      ? 'Creating Account...'
+                      : mode === 'forgot'
+                      ? 'Sending Link...'
+                      : 'Signing In...'}
+                  </span>
                 </>
               ) : (
                 <span>
                   {mode === 'signup'
-                    ? 'Sign Up with Supabase'
+                    ? 'Register'
                     : mode === 'forgot'
                     ? 'Send Reset Link'
-                    : 'Sign In with Supabase'}
+                    : 'Sign In'}
                 </span>
               )}
             </button>
@@ -253,56 +325,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </button>
           </div>
 
-          <div className="mt-4 text-center space-y-1">
-            {mode === 'login' && (
-              <p className="text-xs text-slate-600">
-                Don't have an account yet?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setError('');
-                    setSuccessNotice('');
-                  }}
-                  className="text-teal-600 hover:underline font-semibold cursor-pointer"
-                >
-                  Sign Up
-                </button>
-              </p>
-            )}
-
-            {mode === 'signup' && (
-              <p className="text-xs text-slate-600">
-                Already registered in Supabase?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setError('');
-                    setSuccessNotice('');
-                  }}
-                  className="text-teal-600 hover:underline font-semibold cursor-pointer"
-                >
-                  Sign In
-                </button>
-              </p>
-            )}
-
+          <div className="mt-4 text-center">
             {mode === 'forgot' && (
-              <p className="text-xs text-slate-600">
-                Remember your password?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setError('');
-                    setSuccessNotice('');
-                  }}
-                  className="text-teal-600 hover:underline font-semibold cursor-pointer"
-                >
-                  Back to Sign In
-                </button>
-              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError('');
+                  setSuccessNotice('');
+                }}
+                className="text-xs text-teal-600 hover:underline font-semibold cursor-pointer"
+              >
+                Back to Sign In
+              </button>
             )}
           </div>
         </div>

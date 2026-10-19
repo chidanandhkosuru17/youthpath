@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrendingUp, Bell, Menu, X, Check, User, ArrowRight, LogOut, LayoutDashboard, Bookmark, FileText } from 'lucide-react';
+import { TrendingUp, Bell, Menu, X, Check, User, ArrowRight, LogOut, LayoutDashboard, Bookmark, FileText, LogIn } from 'lucide-react';
 import { NotificationItem, UserProfile } from '../types';
 
 interface NavbarProps {
@@ -75,8 +75,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           ))}
         </nav>
 
-        {/* Right CTA Actions matching screenshot */}
-        <div className="hidden sm:flex items-center gap-3.5">
+        {/* Desktop Right Actions: Notifications + Sign In right beside it + Join Button */}
+        <div className="hidden lg:flex items-center gap-3">
           {/* Notification Bell */}
           <div className="relative">
             <button
@@ -133,119 +133,145 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* User profile dropdown if authenticated or sign in button */}
-          {isAuthenticated && user ? (
-            <div className="relative">
+          {/* Sign In button right beside notification option */}
+          {!isAuthenticated ? (
+            <>
               <button
-                onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:border-teal-200 bg-white transition cursor-pointer"
+                onClick={() => onOpenAuth('login')}
+                className="text-sm font-semibold text-slate-700 hover:text-teal-600 px-3.5 py-2 rounded-lg hover:bg-slate-50 transition border border-slate-200/90 shadow-2xs cursor-pointer flex items-center gap-1.5"
               >
-                <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs uppercase">
-                  {user.name ? user.name.charAt(0) : 'U'}
-                </div>
-                <span className="max-w-[110px] truncate text-slate-800 font-semibold">
-                  {user.name.split(' ')[0]}
-                </span>
+                <LogIn className="w-4 h-4 text-slate-500" />
+                <span>Sign In</span>
               </button>
 
-              {showUserDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-xs font-bold text-slate-900 truncate">{user.name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
+              <button
+                onClick={() => onOpenAuth('signup')}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-medium text-sm px-4.5 py-2 rounded-lg transition shadow-sm hover:shadow-teal-600/20 active:scale-[0.98] cursor-pointer"
+              >
+                Join YouthPath
+              </button>
+            </>
+          ) : (
+            /* User profile dropdown if authenticated */
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:border-teal-200 bg-white transition cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-xs uppercase">
+                    {user?.name ? user.name.charAt(0) : 'U'}
                   </div>
+                  <span className="max-w-[110px] truncate text-slate-800 font-semibold">
+                    {user?.name ? user.name.split(' ')[0] : 'Profile'}
+                  </span>
+                </button>
 
-                  <button
-                    onClick={() => {
-                      setCurrentTab('dashboard');
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5 text-slate-400" />
-                    <span>My Dashboard</span>
-                  </button>
+                {showUserDropdown && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-xs font-bold text-slate-900 truncate">{user?.name}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{user?.email}</p>
+                    </div>
 
-                  <button
-                    onClick={() => {
-                      setCurrentTab('resume');
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Resume Studio</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setCurrentTab('dashboard');
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 text-slate-400" />
+                      <span>My Dashboard</span>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      setCurrentTab('jobs');
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Bookmark className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Saved Opportunities</span>
-                  </button>
+                    <button
+                      onClick={() => {
+                        setCurrentTab('resume');
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Resume Studio</span>
+                    </button>
 
-                  <div className="border-t border-slate-100 my-1"></div>
+                    <button
+                      onClick={() => {
+                        setCurrentTab('jobs');
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Saved Opportunities</span>
+                    </button>
 
-                  <button
-                    onClick={() => {
-                      onSignOut();
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out (Supabase)</span>
-                  </button>
-                </div>
-              )}
+                    <div className="border-t border-slate-100 my-1"></div>
+
+                    <button
+                      onClick={() => {
+                        onSignOut();
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out (Supabase)</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => setCurrentTab('dashboard')}
+                className={`bg-teal-600 hover:bg-teal-700 text-white font-medium text-sm px-4 py-2 rounded-lg transition shadow-sm cursor-pointer ${
+                  currentTab === 'dashboard' ? 'ring-2 ring-teal-500/30' : ''
+                }`}
+              >
+                Dashboard
+              </button>
             </div>
-          ) : (
-            <button
-              onClick={() => onOpenAuth('login')}
-              className="text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-2 cursor-pointer transition"
-            >
-              Sign In
-            </button>
-          )}
-
-          {/* Join YouthPath Solid Teal Button */}
-          {!isAuthenticated ? (
-            <button
-              onClick={() => onOpenAuth('signup')}
-              className="bg-teal-600 hover:bg-teal-700 text-white font-medium text-sm px-4.5 py-2.5 rounded-lg transition shadow-sm hover:shadow-teal-600/20 active:scale-[0.98] cursor-pointer"
-            >
-              Join YouthPath
-            </button>
-          ) : (
-            <button
-              onClick={() => setCurrentTab('dashboard')}
-              className={`bg-teal-600 hover:bg-teal-700 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition shadow-sm cursor-pointer ${
-                currentTab === 'dashboard' ? 'ring-2 ring-teal-500/30' : ''
-              }`}
-            >
-              Dashboard
-            </button>
           )}
         </div>
 
-        {/* Mobile menu toggle */}
+        {/* Mobile menu and Top-Right Mobile Actions */}
         <div className="flex items-center gap-2 lg:hidden">
+          {/* Mobile notification bell */}
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2 text-slate-600 relative cursor-pointer"
+            className="p-2 text-slate-600 relative cursor-pointer rounded-lg hover:bg-slate-50"
+            title="Notifications"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-teal-500 rounded-full"></span>
             )}
           </button>
+
+          {/* Mobile Sign In button right beside notification bell */}
+          {!isAuthenticated ? (
+            <button
+              onClick={() => onOpenAuth('login')}
+              className="text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition cursor-pointer flex items-center gap-1"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setCurrentTab('dashboard')}
+              className="text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-1.5 rounded-lg border border-teal-200"
+            >
+              {user?.name ? user.name.split(' ')[0] : 'Profile'}
+            </button>
+          )}
+
+          {/* Hamburger Menu Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-slate-600 hover:text-slate-900 focus:outline-none cursor-pointer"
+            className="p-2 text-slate-600 hover:text-slate-900 focus:outline-none cursor-pointer rounded-lg hover:bg-slate-50"
+            aria-label="Toggle navigation"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -279,18 +305,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setCurrentTab('dashboard');
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2.5 text-slate-700 font-medium hover:bg-slate-50 rounded-lg"
+                  className="w-full text-left px-3 py-2.5 text-slate-700 font-medium hover:bg-slate-50 rounded-lg flex items-center gap-2"
                 >
-                  Student Profile & Dashboard
+                  <LayoutDashboard className="w-4 h-4 text-teal-600" />
+                  <span>Student Profile & Dashboard</span>
                 </button>
                 <button
                   onClick={() => {
                     onSignOut();
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-red-600 font-medium hover:bg-red-50 rounded-lg text-sm"
+                  className="w-full text-left px-3 py-2 text-red-600 font-medium hover:bg-red-50 rounded-lg text-sm flex items-center gap-2"
                 >
-                  Sign Out
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
                 </button>
               </>
             ) : (
@@ -300,16 +328,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenAuth('login');
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full text-slate-700 border border-slate-200 font-medium py-2.5 rounded-lg text-center text-sm"
+                  className="w-full text-slate-700 border border-slate-200 font-medium py-2.5 rounded-lg text-center text-sm flex items-center justify-center gap-2 hover:bg-slate-50"
                 >
-                  Sign In
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
                 </button>
                 <button
                   onClick={() => {
                     onOpenAuth('signup');
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full bg-teal-600 text-white font-medium py-2.5 rounded-lg text-center text-sm"
+                  className="w-full bg-teal-600 text-white font-medium py-2.5 rounded-lg text-center text-sm shadow-sm hover:bg-teal-700"
                 >
                   Join YouthPath
                 </button>

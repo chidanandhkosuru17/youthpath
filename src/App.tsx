@@ -21,9 +21,54 @@ import { CAREER_TRACKS } from './data/careersData';
 import { INITIAL_JOBS } from './data/jobsData';
 import { INITIAL_LEARNING_ITEMS } from './data/learningData';
 
+const DEFAULT_USER_PROFILE: UserProfile = {
+  id: 'usr_default_01',
+  name: 'Aarav Sharma',
+  email: 'aarav.sharma@example.in',
+  phone: '+91 98765 43210',
+  location: 'Bengaluru, Karnataka',
+  state: 'Karnataka',
+  city: 'Bengaluru',
+  educationLevel: 'Bachelor of Technology',
+  degree: 'B.Tech in Computer Science',
+  specialization: 'Information Technology',
+  graduationYear: 2026,
+  technicalSkills: ['JavaScript', 'React.js', 'Python', 'SQL', 'Git', 'Tailwind CSS'],
+  softSkills: ['Analytical Thinking', 'Team Collaboration', 'Fast Learner'],
+  workExperience: [
+    {
+      title: 'Web Development Intern',
+      company: 'TechNovate Labs India',
+      duration: 'May 2025 - Jul 2025 (3 Months)',
+      description: 'Assisted in developing reusable React UI components and connected front-end pages to REST endpoints.'
+    }
+  ],
+  projects: [
+    {
+      title: 'Student Career & Internship Tracker',
+      description: 'Built a responsive dashboard to track campus applications and deadlines using React and Tailwind.',
+      technologies: ['React', 'JavaScript', 'Tailwind CSS'],
+      link: 'https://github.com/aarav-sharma/campus-tracker'
+    }
+  ],
+  certifications: [
+    {
+      title: 'Full Stack Web Development Certification',
+      issuer: 'FreeCodeCamp',
+      year: '2025'
+    }
+  ],
+  languages: ['English', 'Hindi', 'Kannada'],
+  preferredRoles: ['Frontend Developer', 'Full Stack Developer', 'Junior Software Engineer'],
+  preferredLocations: ['Bengaluru', 'Hyderabad', 'Pune', 'Remote'],
+  preferredWorkMode: 'hybrid',
+  preferredEmploymentType: 'full-time',
+  learningGoals: ['Master TypeScript and Node.js backend architecture', 'Ace technical coding interviews']
+};
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('landing');
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [careerTracks, setCareerTracks] = useState<CareerTrack[]>(CAREER_TRACKS);
@@ -402,19 +447,17 @@ export default function App() {
       />
 
       {/* 5. Auth & Demo Sign In Modal */}
-      {user && (
-        <AuthModal
-          isOpen={isAuthOpen}
-          initialMode={authMode}
-          onClose={() => setIsAuthOpen(false)}
-          onSuccess={(u) => {
-            setUser(u);
-            setIsAuthenticated(true);
-            handleTabChange('dashboard');
-          }}
-          currentProfile={user}
-        />
-      )}
+      <AuthModal
+        isOpen={isAuthOpen}
+        initialMode={authMode}
+        onClose={() => setIsAuthOpen(false)}
+        onSuccess={(u) => {
+          setUser(u);
+          setIsAuthenticated(true);
+          handleTabChange('dashboard');
+        }}
+        currentProfile={user}
+      />
     </div>
   );
 }
